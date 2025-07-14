@@ -1,0 +1,489 @@
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+import path from "path";
+import { createDbInstance } from "./src/database.js";
+import { withContext } from "./src/context.js";
+import { ContactService } from "./src/contact-service.js";
+import { logger, getStorageDir } from "./src/logger.js";
+import type { ContactUpdate } from "./src/types.js";
+
+function getDatabasePath(): string {
+  // Check command line arguments first
+  const dbPathArg = process.argv.find((arg) => arg.startsWith("--db-path="));
+  if (dbPathArg) {
+    return dbPathArg.split("=")[1];
+  }
+
+  // Check environment variable
+  if (process.env.DB_PATH) {
+    return process.env.DB_PATH;
+  }
+
+  // Production default: ~/.c2/db
+  return path.join(getStorageDir(), "db");
+}
+
+function getAIBaseUrl(): string {
+  // Check command line arguments first
+  const baseUrlArg = process.argv.find((arg) =>
+    arg.startsWith("--ai-base-url="),
+  );
+  if (baseUrlArg) {
+    return baseUrlArg.split("=")[1];
+  }
+
+  // Check environment variable
+  if (process.env.AI_BASE_URL) {
+    return process.env.AI_BASE_URL;
+  }
+
+  // Production default: localhost Ollama
+  return "http://localhost:3001/v1";
+}
+
+function getEmbeddingsModel(): string | undefined {
+  // Check command line arguments first
+  const modelArg = process.argv.find((arg) =>
+    arg.startsWith("--embeddings-model="),
+  );
+  if (modelArg) {
+    return modelArg.split("=")[1];
+  }
+
+  // Check environment variable
+  if (process.env.EMBEDDINGS_MODEL) {
+    return process.env.EMBEDDINGS_MODEL;
+  }
+
+  return undefined;
+}
+
+export async function initializeContactService() {
+  const dbPath = getDatabasePath();
+  const aiBaseUrl = getAIBaseUrl();
+  const embeddingsModel = getEmbeddingsModel();
+
+  // Embeddings are enabled by default in production
+  const embeddingsEnabled = true;
+
+  // Set default model for Ollama
+  const finalModel = embeddingsModel || "mxbai-embed-large";
+
+  logger.info("Starting Contact Management System...");
+  logger.info(`Database: ${dbPath}`);
+  logger.info(`Embeddings: ${embeddingsEnabled ? "enabled" : "disabled"}`);
+  logger.info(`AI Base URL: ${aiBaseUrl}`);
+  logger.info(`Embeddings Model: ${finalModel}`);
+
+  // Initialize database and run migrations
+  const db = await createDbInstance({
+    dataDir: dbPath,
+    enableVector: embeddingsEnabled,
+  });
+
+  // Return initialized ContactService for external use
+  return await withContext(
+    {
+      db,
+      embeddingsEnabled,
+      aiBaseUrl,
+      embeddingsModel: finalModel,
+    },
+    async () => {
+      return new ContactService();
+    },
+  );
+}
+
+// Export the initialization function for use in other modules
+export { ContactService } from "./src/contact-service.js";
+export { createDbInstance } from "./src/database.js";
+export { withContext } from "./src/context.js";
+
+// MCP Server entry point
+if (import.meta.main) {
+  const server = new McpServer({
+    name: "c2-contact-service",
+    version: "1.0.0",
+  });
+
+  let contactService: ContactService;
+
+  // Initialize contact service
+  initializeContactService()
+    .then((service) => {
+      contactService = service;
+      logger.info("Contact service initialized successfully");
+    })
+    .catch((error) => {
+      logger.error(`Failed to initialize contact service: ${error}`);
+      process.exit(1);
+    });
+
+  // Contact CRUD Tools
+  server.registerTool(
+    "create-contact",
+    {
+      title: "Create Contact",
+      description: "Create a new contact",
+      inputSchema: z.object({
+        name: z.string(),
+        email: z.string().email().optional(),
+        phone: z.string().optional(),
+        notes: z.string().optional(),
+      }),
+    },
+    async ({ name, email, phone, notes }) => {
+      const contact = await contactService.createContact({
+        name,
+        email,
+        phone,
+        notes,
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Created contact: ${JSON.stringify(contact, null, 2)}`,
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "get-contact",
+    {
+      title: "Get Contact",
+      description: "Get a contact by ID",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+        },
+        required: ["id"],
+      },
+    },
+    async ({ id }) => {
+      const contact = await contactService.getContact(id);
+      if (!contact) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Contact with ID ${id} not found`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(contact, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "update-contact",
+    {
+      title: "Update Contact",
+      description: "Update an existing contact",
+      inputSchema: z.object({
+        id: z.string(),
+      }),
+        required: ["id"],
+      },
+    },
+    async ({ id, name, email, phone, notes }) => {
+      const updates: ContactUpdate = { id };
+      if (name !== undefined) updates.name = name;
+      if (email !== undefined) updates.email = email;
+      if (phone !== undefined) updates.phone = phone;
+      if (notes !== undefined) updates.notes = notes;
+
+      const contact = await contactService.updateContact(updates);
+      if (!contact) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Contact with ID ${id} not found`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Updated contact: ${JSON.stringify(contact, null, 2)}`,
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "delete-contact",
+    {
+      title: "Delete Contact",
+      description: "Delete a contact by ID",
+      inputSchema: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+        },
+        required: ["id"],
+      },
+    },
+    async ({ id }) => {
+      const success = await contactService.deleteContact(id);
+      if (!success) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Contact with ID ${id} not found`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Successfully deleted contact with ID ${id}`,
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "list-contacts",
+    {
+      title: "List Contacts",
+      description: "List all contacts with optional pagination",
+      inputSchema: {
+        type: "object",
+        properties: {
+          limit: { type: "number" },
+          offset: { type: "number" },
+        },
+      },
+    },
+    async ({ limit, offset }) => {
+      const contacts = await contactService.listContacts({ limit, offset });
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Found ${contacts.length} contacts:\n${JSON.stringify(contacts, null, 2)}`,
+          },
+        ],
+      };
+    },
+  );
+
+  // Bulk Operations Tools
+  server.registerTool(
+    "bulk-create-contacts",
+    {
+      title: "Bulk Create Contacts",
+      description: "Create multiple contacts at once",
+      inputSchema: {
+        type: "object",
+        properties: {
+          contacts: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                email: { type: "string", format: "email" },
+                phone: { type: "string" },
+                notes: { type: "string" },
+              },
+              required: ["name"],
+            },
+          },
+        },
+        required: ["contacts"],
+      },
+    },
+    async ({ contacts }) => {
+      const result = await contactService.bulkInsertContacts(contacts);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Bulk insert result: ${JSON.stringify(result, null, 2)}`,
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "bulk-update-contacts",
+    {
+      title: "Bulk Update Contacts",
+      description: "Update multiple contacts at once",
+      inputSchema: {
+        type: "object",
+        properties: {
+          updates: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string" },
+                name: { type: "string" },
+                email: { type: "string", format: "email" },
+                phone: { type: "string" },
+                notes: { type: "string" },
+              },
+              required: ["id"],
+            },
+          },
+        },
+        required: ["updates"],
+      },
+    },
+    async ({ updates }) => {
+      const result = await contactService.bulkUpdateContacts(updates);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Bulk update result: ${JSON.stringify(result, null, 2)}`,
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "bulk-delete-contacts",
+    {
+      title: "Bulk Delete Contacts",
+      description: "Delete multiple contacts at once",
+      inputSchema: {
+        type: "object",
+        properties: {
+          ids: {
+            type: "array",
+            items: { type: "string" },
+          },
+        },
+        required: ["ids"],
+      },
+    },
+    async ({ ids }) => {
+      const result = await contactService.bulkDeleteContacts(ids);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Bulk delete result: ${JSON.stringify(result, null, 2)}`,
+          },
+        ],
+      };
+    },
+  );
+
+  // Search Tools
+  server.registerTool(
+    "search-contacts",
+    {
+      title: "Search Contacts",
+      description: "Search contacts by name, email, or phone",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          limit: { type: "number" },
+          offset: { type: "number" },
+        },
+        required: ["query"],
+      },
+    },
+    async ({ query, limit, offset }) => {
+      const contacts = await contactService.searchContacts(query, {
+        limit,
+        offset,
+      });
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Search results for "${query}":\n${JSON.stringify(contacts, null, 2)}`,
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerTool(
+    "semantic-search-contacts",
+    {
+      title: "Semantic Search Contacts",
+      description: "Perform semantic search on contacts using embeddings",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string" },
+          limit: { type: "number" },
+          offset: { type: "number" },
+        },
+        required: ["query"],
+      },
+    },
+    async ({ query, limit, offset }) => {
+      try {
+        const contacts = await contactService.searchContacts(query, {
+          limit,
+          offset,
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Semantic search results for "${query}":\n${JSON.stringify(contacts, null, 2)}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Semantic search failed: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // Start the MCP server
+  const transport = new StdioServerTransport();
+  server
+    .connect(transport)
+    .then(() => {
+      logger.info("MCP server started successfully");
+    })
+    .catch((error) => {
+      logger.error(`Failed to start MCP server: ${error}`);
+      process.exit(1);
+    });
+}
