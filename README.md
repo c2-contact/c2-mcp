@@ -1,6 +1,6 @@
 # c2-mcp
 
-A Model Context Protocol (MCP) server for contact management, powered by [pglite](https://electric-sql.com/docs/pglite) (embedded Postgres/SQLite hybrid) and [Ollama](https://ollama.com/) for AI-powered embeddings and semantic search.
+A Model Context Protocol (MCP) server for contact management, powered by [pglite](https://pglite.dev/docs) (embedded Postgres/SQLite hybrid) and [Ollama](https://ollama.com/) for AI-powered embeddings and semantic search.
 
 ## Features
 
