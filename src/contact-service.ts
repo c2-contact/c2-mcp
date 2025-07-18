@@ -243,13 +243,12 @@ export class ContactService {
 
   private async semanticSearch(query: string): Promise<Contact[]> {
     try {
-      // Create embedding for the search query
+      // Create embedding for the search query (reverted: no instruct)
+      // const prompt = createSemanticSearchPrompt(query);
       const queryEmbedding = await createEmbedding(query, {
         baseUrl: this._aiBaseUrl,
         model: this._embeddingsModel,
-      });
-
-      // Validate query embedding
+      }); // Validate query embedding
       if (!queryEmbedding || queryEmbedding.length === 0) {
         logger.warn(
           "Failed to create query embedding, falling back to text search",

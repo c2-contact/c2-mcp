@@ -394,6 +394,31 @@ describe("Semantic Search Edge Cases", () => {
     );
   });
 
+  it("should find contact by semantic search on tag with pluralization edge case", async () => {
+    await withContext(
+      {
+        db,
+        embeddingsEnabled: true,
+        aiBaseUrl: "http://localhost:11434/v1",
+        embeddingsModel: "mxbai-embed-large",
+      },
+      async () => {
+        contactService = new ContactService();
+        // Create Tony Stark with tag 'Superhero'
+        await contactService.createContact({
+          name: "Tony Stark",
+          tags: ["Superhero"],
+        });
+        // Search for 'superheros' (plural, common misspelling)
+        const results = await contactService.searchContacts("superheros");
+        // Should find Tony Stark (even with pluralization)
+        const tony = results.find((c) => c.name === "Tony Stark");
+        expect(tony).toBeDefined();
+        expect(tony?.tags).toContain("Superhero");
+      },
+    );
+  });
+
   it("should handle special characters in semantic search", async () => {
     await withContext(
       {
