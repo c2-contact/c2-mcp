@@ -121,6 +121,13 @@ function registerTools(server: McpServerType, contactService: ContactService) {
         location: z.string().optional(),
         birthdate: z.string().optional(),
       },
+      annotations: {
+        title: "Create Contact",
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
+      },
     },
     async ({
       name,
@@ -166,6 +173,13 @@ function registerTools(server: McpServerType, contactService: ContactService) {
       inputSchema: {
         id: z.string(),
       },
+      annotations: {
+        title: "Get Contact",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ id }) => {
       const contact = await contactService.getContact(id);
@@ -202,6 +216,13 @@ function registerTools(server: McpServerType, contactService: ContactService) {
         limit: z.number().optional(),
         offset: z.number().optional(),
       },
+      annotations: {
+        title: "List Contacts",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ limit, offset }) => {
       const contacts = await contactService.listContacts({ limit, offset });
@@ -226,6 +247,13 @@ function registerTools(server: McpServerType, contactService: ContactService) {
         query: z.string(),
         limit: z.number().optional(),
         offset: z.number().optional(),
+      },
+      annotations: {
+        title: "Search Contacts",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
       },
     },
     async ({ query, limit, offset }) => {
@@ -259,6 +287,13 @@ function registerTools(server: McpServerType, contactService: ContactService) {
         notes: z.string().optional(),
         location: z.string().optional(),
         birthdate: z.string().optional(),
+      },
+      annotations: {
+        title: "Update Contact",
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
       },
     },
     async ({
@@ -311,6 +346,13 @@ function registerTools(server: McpServerType, contactService: ContactService) {
       inputSchema: {
         id: z.string(),
       },
+      annotations: {
+        title: "Delete Contact",
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ id }) => {
       await contactService.deleteContact(id);
@@ -334,6 +376,13 @@ function registerTools(server: McpServerType, contactService: ContactService) {
       inputSchema: {
         query: z.string(),
         limit: z.number().optional(),
+      },
+      annotations: {
+        title: "Semantic Search Contacts",
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
       },
     },
     async ({ query }) => {
@@ -370,6 +419,13 @@ function registerTools(server: McpServerType, contactService: ContactService) {
             birthdate: z.string().optional(),
           }),
         ),
+      },
+      annotations: {
+        title: "Bulk Create Contacts",
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: false,
       },
     },
     async ({ contacts }) => {
@@ -433,6 +489,13 @@ function registerTools(server: McpServerType, contactService: ContactService) {
           }),
         ),
       },
+      annotations: {
+        title: "Bulk Update Contacts",
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     async ({ updates }) => {
       const normalizedUpdates = updates.map((update) => ({
@@ -479,6 +542,13 @@ function registerTools(server: McpServerType, contactService: ContactService) {
       description: "Delete multiple contacts at once",
       inputSchema: {
         ids: z.array(z.string()),
+      },
+      annotations: {
+        title: "Bulk Delete Contacts",
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
       },
     },
     async ({ ids }) => {
