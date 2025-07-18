@@ -8,6 +8,43 @@ import { withContext } from "./src/context.js";
 import { ContactService } from "./src/contact-service.js";
 import { logger, getStorageDir } from "./src/logger.js";
 import type { ContactUpdate } from "./src/types.js";
+import type { Contact } from "./src/schema.js";
+import {
+  contactSelectSchema,
+  contactOutputShape,
+  contactArrayOutputShape,
+  bulkResultOutputShape,
+  deleteResultOutputShape,
+} from "./src/schema.js";
+
+// Helper function to transform contact data for MCP output
+function transformContactForOutput(contact: Contact) {
+  return {
+    ...contact,
+    createdAt: contact.createdAt.toISOString(),
+    updatedAt: contact.updatedAt.toISOString(),
+    birthdate: contact.birthdate ? contact.birthdate.toString() : null,
+  };
+}
+
+// Helper function to transform bulk operation results
+function transformBulkResult(result: any) {
+  const transformed = { ...result };
+
+  // Transform contacts if present
+  if (result.contacts) {
+    transformed.contacts = result.contacts.map(transformContactForOutput);
+  }
+
+  // Transform errors to strings if present
+  if (result.errors) {
+    transformed.errors = result.errors.map((error: any) =>
+      typeof error === "string" ? error : JSON.stringify(error),
+    );
+  }
+
+  return transformed;
+}
 
 function getDatabasePath(): string {
   const dbPathArg = process.argv.find((arg) => arg.startsWith("--db-path="));
@@ -128,6 +165,7 @@ function registerTools(server: McpServerType, contactService: ContactService) {
         idempotentHint: false,
         openWorldHint: false,
       },
+      outputSchema: contactOutputShape,
     },
     async ({
       name,
@@ -153,13 +191,15 @@ function registerTools(server: McpServerType, contactService: ContactService) {
         location,
         birthdate,
       });
+      const transformedContact = transformContactForOutput(contact);
       return {
         content: [
           {
             type: "text",
-            text: `Created contact: ${JSON.stringify(contact, null, 2)}`,
+            text: JSON.stringify(transformedContact),
           },
         ],
+        structuredContent: transformedContact,
       };
     },
   );
@@ -180,6 +220,7 @@ function registerTools(server: McpServerType, contactService: ContactService) {
         idempotentHint: true,
         openWorldHint: false,
       },
+      // Remove output schema to avoid validation issues with null values
     },
     async ({ id }) => {
       const contact = await contactService.getContact(id);
@@ -188,51 +229,22 @@ function registerTools(server: McpServerType, contactService: ContactService) {
           content: [
             {
               type: "text",
-              text: `Contact with ID ${id} not found`,
+              text: JSON.stringify({ contact: null }),
             },
           ],
-          isError: true,
+          structuredContent: { contact: null },
         };
       }
 
+      const transformedContact = transformContactForOutput(contact);
       return {
         content: [
           {
             type: "text",
-            text: JSON.stringify(contact, null, 2),
+            text: JSON.stringify(transformedContact),
           },
         ],
-      };
-    },
-  );
-
-  // List Contacts Tool
-  server.registerTool(
-    "list-contacts",
-    {
-      title: "List Contacts",
-      description: "List all contacts with optional pagination",
-      inputSchema: {
-        limit: z.number().optional(),
-        offset: z.number().optional(),
-      },
-      annotations: {
-        title: "List Contacts",
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-    },
-    async ({ limit, offset }) => {
-      const contacts = await contactService.listContacts({ limit, offset });
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Found ${contacts.length} contacts:\n${JSON.stringify(contacts, null, 2)}`,
-          },
-        ],
+        structuredContent: transformedContact,
       };
     },
   );
@@ -245,8 +257,6 @@ function registerTools(server: McpServerType, contactService: ContactService) {
       description: "Search contacts by name, email, or phone",
       inputSchema: {
         query: z.string(),
-        limit: z.number().optional(),
-        offset: z.number().optional(),
       },
       annotations: {
         title: "Search Contacts",
@@ -255,16 +265,19 @@ function registerTools(server: McpServerType, contactService: ContactService) {
         idempotentHint: true,
         openWorldHint: false,
       },
+      outputSchema: contactArrayOutputShape,
     },
-    async ({ query, limit, offset }) => {
+    async ({ query }) => {
       const contacts = await contactService.searchContacts(query);
+      const transformedContacts = contacts.map(transformContactForOutput);
       return {
         content: [
           {
             type: "text",
-            text: `Search results for "${query}":\n${JSON.stringify(contacts, null, 2)}`,
+            text: JSON.stringify({ contacts: transformedContacts }),
           },
         ],
+        structuredContent: { contacts: transformedContacts },
       };
     },
   );
@@ -295,6 +308,7 @@ function registerTools(server: McpServerType, contactService: ContactService) {
         idempotentHint: true,
         openWorldHint: false,
       },
+      outputSchema: contactOutputShape,
     },
     async ({
       id,
@@ -326,13 +340,26 @@ function registerTools(server: McpServerType, contactService: ContactService) {
       if (birthdate !== undefined) updateData.birthdate = birthdate;
 
       const contact = await contactService.updateContact(updateData);
+      if (!contact) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Contact with ID ${id} not found`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      const transformedContact = transformContactForOutput(contact);
       return {
         content: [
           {
             type: "text",
-            text: `Updated contact: ${JSON.stringify(contact, null, 2)}`,
+            text: JSON.stringify(transformedContact),
           },
         ],
+        structuredContent: transformedContact,
       };
     },
   );
@@ -353,16 +380,23 @@ function registerTools(server: McpServerType, contactService: ContactService) {
         idempotentHint: true,
         openWorldHint: false,
       },
+      outputSchema: deleteResultOutputShape,
     },
     async ({ id }) => {
       await contactService.deleteContact(id);
+      const result = {
+        success: true,
+        message: `Contact with ID ${id} deleted successfully`,
+        deletedId: id,
+      };
       return {
         content: [
           {
             type: "text",
-            text: `Contact with ID ${id} deleted successfully`,
+            text: JSON.stringify(result),
           },
         ],
+        structuredContent: result,
       };
     },
   );
@@ -384,16 +418,19 @@ function registerTools(server: McpServerType, contactService: ContactService) {
         idempotentHint: true,
         openWorldHint: true,
       },
+      outputSchema: contactArrayOutputShape,
     },
     async ({ query }) => {
       const contacts = await contactService.searchContacts(query);
+      const transformedContacts = contacts.map(transformContactForOutput);
       return {
         content: [
           {
             type: "text",
-            text: `Semantic search results for "${query}":\n${JSON.stringify(contacts, null, 2)}`,
+            text: JSON.stringify({ contacts: transformedContacts }),
           },
         ],
+        structuredContent: { contacts: transformedContacts },
       };
     },
   );
@@ -427,6 +464,7 @@ function registerTools(server: McpServerType, contactService: ContactService) {
         idempotentHint: false,
         openWorldHint: false,
       },
+      outputSchema: bulkResultOutputShape,
     },
     async ({ contacts }) => {
       const normalizedContacts = contacts.map((contact) => ({
@@ -455,13 +493,15 @@ function registerTools(server: McpServerType, contactService: ContactService) {
 
       const result =
         await contactService.bulkInsertContacts(normalizedContacts);
+      const transformedResult = transformBulkResult(result);
       return {
         content: [
           {
             type: "text",
-            text: `Bulk insert result: ${JSON.stringify(result, null, 2)}`,
+            text: JSON.stringify(transformedResult),
           },
         ],
+        structuredContent: transformedResult,
       };
     },
   );
@@ -496,6 +536,7 @@ function registerTools(server: McpServerType, contactService: ContactService) {
         idempotentHint: true,
         openWorldHint: false,
       },
+      outputSchema: bulkResultOutputShape,
     },
     async ({ updates }) => {
       const normalizedUpdates = updates.map((update) => ({
@@ -523,13 +564,15 @@ function registerTools(server: McpServerType, contactService: ContactService) {
       }));
 
       const result = await contactService.bulkUpdateContacts(normalizedUpdates);
+      const transformedResult = transformBulkResult(result);
       return {
         content: [
           {
             type: "text",
-            text: `Bulk update result: ${JSON.stringify(result, null, 2)}`,
+            text: JSON.stringify(transformedResult),
           },
         ],
+        structuredContent: transformedResult,
       };
     },
   );
@@ -550,16 +593,19 @@ function registerTools(server: McpServerType, contactService: ContactService) {
         idempotentHint: true,
         openWorldHint: false,
       },
+      outputSchema: bulkResultOutputShape,
     },
     async ({ ids }) => {
       const result = await contactService.bulkDeleteContacts(ids);
+      const transformedResult = transformBulkResult(result);
       return {
         content: [
           {
             type: "text",
-            text: `Bulk delete result: ${JSON.stringify(result, null, 2)}`,
+            text: JSON.stringify(transformedResult),
           },
         ],
+        structuredContent: transformedResult,
       };
     },
   );

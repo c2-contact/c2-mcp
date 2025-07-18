@@ -8,6 +8,8 @@ import {
   index,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import { createSelectSchema, createInsertSchema } from "drizzle-zod";
+import { z } from "zod";
 
 const createdAt = timestamp("created_at").defaultNow().notNull();
 const updatedAt = timestamp("updated_at").defaultNow().notNull();
@@ -64,3 +66,42 @@ export type Contact = typeof contacts.$inferSelect;
 export type NewContact = typeof contacts.$inferInsert;
 export type Embedding = typeof embeddings.$inferSelect;
 export type NewEmbedding = typeof embeddings.$inferInsert;
+
+// Zod schemas for MCP structured output
+export const contactSelectSchema = createSelectSchema(contacts);
+export const contactInsertSchema = createInsertSchema(contacts);
+
+// Manual schemas compatible with MCP SDK (ZodRawShape)
+export const contactOutputShape = {
+  id: z.string(),
+  name: z.string(),
+  title: z.string(),
+  company: z.string(),
+  email: z.array(z.string()),
+  phone: z.array(z.string()),
+  links: z.array(z.string()),
+  tags: z.array(z.string()),
+  notes: z.string(),
+  location: z.string(),
+  birthdate: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+};
+
+export const contactArrayOutputShape = {
+  contacts: z.array(z.object(contactOutputShape)),
+};
+
+export const bulkResultOutputShape = {
+  success: z.boolean(),
+  processedCount: z.number(),
+  errors: z.array(z.string()).optional(),
+  contacts: z.array(z.object(contactOutputShape)).optional(),
+  deletedIds: z.array(z.string()).optional(),
+};
+
+export const deleteResultOutputShape = {
+  success: z.boolean(),
+  message: z.string(),
+  deletedId: z.string(),
+};

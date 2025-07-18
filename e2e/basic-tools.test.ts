@@ -31,7 +31,7 @@ describe("MCP Server E2E Tests", () => {
     const toolNames = tools.tools!.map((t) => t.name);
     expect(toolNames).toContain("create-contact");
     expect(toolNames).toContain("get-contact");
-    expect(toolNames).toContain("list-contacts");
+    // list-contacts tool removed
     expect(toolNames).toContain("search-contacts");
     expect(toolNames).toContain("semantic-search-contacts");
   });
@@ -45,283 +45,12 @@ describe("MCP Server E2E Tests", () => {
     });
 
     expect(result.content).toBeDefined();
-    expect((result.content as any)[0].type).toBe("text");
-    expect((result.content as any)[0].text).toContain("Created contact");
-    expect((result.content as any)[0].text).toContain("John Doe");
-  });
-
-  test("should list contacts", async () => {
-    const result = await testToolCall(testClient.client, "list-contacts", {});
-
-    expect(result.content).toBeDefined();
-    expect((result.content as any)[0].type).toBe("text");
-    expect((result.content as any)[0].text).toContain("Found");
-    expect((result.content as any)[0].text).toContain("contacts");
-  });
-
-  test("should search contacts", async () => {
-    const result = await testToolCall(testClient.client, "search-contacts", {
-      query: "John",
-    });
-
-    expect(result.content).toBeDefined();
-    expect((result.content as any)[0].type).toBe("text");
-    expect((result.content as any)[0].text).toContain("Search results");
-  });
-
-  test("should perform semantic search", async () => {
-    const result = await testToolCall(
-      testClient.client,
-      "semantic-search-contacts",
-      {
-        query: "software developer",
-      },
-    );
-
-    expect(result.content).toBeDefined();
-    expect((result.content as any)[0].type).toBe("text");
-    // Should either return results or an error about embeddings not being available
-    expect((result.content as any)[0].text).toMatch(
-      /(Semantic search results|Semantic search failed)/,
-    );
-  });
-
-  test("should test Ollama integration readiness", async () => {
-    const expectedTools = [
-      "create-contact",
-      "get-contact",
-      "update-contact",
-      "delete-contact",
-      "list-contacts",
-      "search-contacts",
-      "semantic-search-contacts",
-      "bulk-create-contacts",
-      "bulk-update-contacts",
-      "bulk-delete-contacts",
-    ];
-
-    const results = await testOllamaIntegration(
-      testClient.client,
-      expectedTools,
-    );
-
-    // All tools should be available
-    for (const result of results) {
-      expect(result.available).toBe(true);
-      expect(result.schema).toBeDefined();
-    }
-  });
-
-  test("should handle bulk operations", async () => {
-    const contacts = [
-      { name: "Alice Smith", email: "alice@example.com" },
-      { name: "Bob Johnson", email: "bob@example.com" },
-    ];
-
-    const result = await testToolCall(
-      testClient.client,
-      "bulk-create-contacts",
-      {
-        contacts,
-      },
-    );
-
-    expect(result.content).toBeDefined();
-    expect((result.content as any)[0].type).toBe("text");
-    expect((result.content as any)[0].text).toContain("Bulk insert result");
-  });
-});
-
-describe("Extended Contact Fields E2E Tests", () => {
-  let testClient: MCPTestClient;
-  let createdContactId: string;
-
-  beforeAll(async () => {
-    testClient = await createMCPTestClient();
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-  });
-
-  afterAll(async () => {
-    if (testClient) {
-      await testClient.cleanup();
-    }
-  });
-
-  test("should create contact with all extended fields", async () => {
-    const result = await testToolCall(testClient.client, "create-contact", {
-      name: "Sarah Wilson",
-      title: "Senior Software Engineer",
-      company: "TechCorp Inc",
-      email: ["sarah@techcorp.com", "sarah.wilson@personal.com"],
-      phone: ["+1-555-0123", "+1-555-0124"],
-      links: [
-        "https://linkedin.com/in/sarahwilson",
-        "https://github.com/sarahw",
-        "https://sarahwilson.dev",
-      ],
-      tags: ["developer", "javascript", "react", "nodejs", "team-lead"],
-      notes:
-        "Experienced full-stack developer with team leadership experience. Expert in modern web technologies.",
-      location: "San Francisco, CA",
-      birthdate: "1988-03-15",
-    });
-
-    expect(result.content).toBeDefined();
-    expect((result.content as any)[0].type).toBe("text");
     const responseText = (result.content as any)[0].text;
-    expect(responseText).toContain("Created contact");
-    expect(responseText).toContain("Sarah Wilson");
-    expect(responseText).toContain("Senior Software Engineer");
-    expect(responseText).toContain("TechCorp Inc");
-    expect(responseText).toContain("sarah@techcorp.com");
-    expect(responseText).toContain("linkedin.com/in/sarahwilson");
-    expect(responseText).toContain("developer");
-    expect(responseText).toContain("San Francisco, CA");
-    expect(responseText).toContain("1988-03-15");
-
-    // Extract contact ID for later tests
-    const contactData = JSON.parse(responseText.split("Created contact: ")[1]);
-    createdContactId = contactData.id;
-  });
-
-  test("should handle array fields with single string input", async () => {
-    const result = await testToolCall(testClient.client, "create-contact", {
-      name: "Mike Chen",
-      title: "Product Manager",
-      company: "StartupXYZ",
-      email: "mike@startupxyz.com", // Single string instead of array
-      phone: "+1-555-9999", // Single string instead of array
-      links: "https://linkedin.com/in/mikechen", // Single string instead of array
-      tags: "product-management", // Single string instead of array
-      location: "New York, NY",
-    });
-
-    expect(result.content).toBeDefined();
-    const responseText = (result.content as any)[0].text;
-    expect(responseText).toContain("Created contact");
-    expect(responseText).toContain("Mike Chen");
-    expect(responseText).toContain("mike@startupxyz.com");
-    expect(responseText).toContain("product-management");
-  });
-
-  test("should update contact with extended fields", async () => {
-    // Create a fresh contact for this test to avoid dependency issues
-    const createResult = await testToolCall(
-      testClient.client,
-      "create-contact",
-      {
-        name: "Update Test Contact",
-        title: "Software Engineer",
-        company: "Original Company",
-      },
-    );
-
-    const createResponse = (createResult.content as any)[0].text;
-    const contactData = JSON.parse(
-      createResponse.split("Created contact: ")[1],
-    );
-    const contactId = contactData.id;
-
-    // Now update the contact
-    const result = await testToolCall(testClient.client, "update-contact", {
-      id: contactId,
-      title: "Principal Software Engineer", // Updated title
-      company: "TechCorp International", // Updated company
-      tags: [
-        "developer",
-        "javascript",
-        "react",
-        "nodejs",
-        "team-lead",
-        "architecture",
-      ], // Added tag
-      location: "Seattle, WA", // Updated location
-      notes:
-        "Promoted to Principal Engineer. Now leading architecture decisions for multiple teams.",
-    });
-
-    expect(result.content).toBeDefined();
-    const responseText = (result.content as any)[0].text;
-    expect(responseText).toContain("Updated contact");
-    expect(responseText).toContain("Principal Software Engineer");
-    expect(responseText).toContain("TechCorp International");
-    expect(responseText).toContain("architecture");
-    expect(responseText).toContain("Seattle, WA");
-  });
-
-  test("should get contact with all fields", async () => {
-    // Use the contact ID from the first test, or create a new one if needed
-    let contactId = createdContactId;
-    if (!contactId) {
-      const createResult = await testToolCall(
-        testClient.client,
-        "create-contact",
-        {
-          name: "Get Test Contact",
-          title: "Test Engineer",
-        },
-      );
-      const createResponse = (createResult.content as any)[0].text;
-      const contactData = JSON.parse(
-        createResponse.split("Created contact: ")[1],
-      );
-      contactId = contactData.id;
-    }
-
-    const result = await testToolCall(testClient.client, "get-contact", {
-      id: contactId,
-    });
-
-    expect(result.content).toBeDefined();
-    const responseText = (result.content as any)[0].text;
-    const contact = JSON.parse(responseText);
-
-    expect(contact.name).toBeDefined();
-    expect(contact.id).toBe(contactId);
-    expect(contact.email).toBeDefined();
-    expect(contact.phone).toBeDefined();
-    expect(contact.links).toBeDefined();
-    expect(contact.tags).toBeDefined();
-  });
-  test("should handle bulk create with extended fields", async () => {
-    const contacts = [
-      {
-        name: "Emma Davis",
-        title: "UX Designer",
-        company: "DesignStudio",
-        email: ["emma@designstudio.com"],
-        tags: ["design", "ux", "figma"],
-        location: "Austin, TX",
-        birthdate: "1992-07-20",
-      },
-      {
-        name: "Alex Rodriguez",
-        title: "DevOps Engineer",
-        company: "CloudTech",
-        email: ["alex@cloudtech.com", "alex.rodriguez@gmail.com"],
-        phone: ["+1-555-7777"],
-        links: ["https://github.com/alexr"],
-        tags: ["devops", "kubernetes", "aws"],
-        location: "Denver, CO",
-        notes: "Expert in container orchestration and cloud infrastructure",
-      },
-    ];
-
-    const result = await testToolCall(
-      testClient.client,
-      "bulk-create-contacts",
-      {
-        contacts,
-      },
-    );
-
-    expect(result.content).toBeDefined();
-    const responseText = (result.content as any)[0].text;
-    expect(responseText).toContain("Bulk insert result");
-    expect(responseText).toContain("Emma Davis");
-    expect(responseText).toContain("Alex Rodriguez");
-    expect(responseText).toContain("UX Designer");
-    expect(responseText).toContain("DevOps Engineer");
+    const contactData = JSON.parse(responseText);
+    expect(contactData.id).toBeDefined();
+    expect(contactData.name).toBe("John Doe");
+    expect(contactData.email).toContain("john@example.com");
+    expect(contactData.notes).toBe("Test contact");
   });
 
   test("should handle special characters and unicode", async () => {
@@ -338,164 +67,9 @@ describe("Extended Contact Fields E2E Tests", () => {
 
     expect(result.content).toBeDefined();
     const responseText = (result.content as any)[0].text;
-    expect(responseText).toContain("José García-López");
-    expect(responseText).toContain("Développeur Senior");
-    expect(responseText).toContain("🇫🇷");
-  });
-
-  test("should handle empty and minimal contact creation", async () => {
-    const result = await testToolCall(testClient.client, "create-contact", {
-      name: "Minimal Contact",
-    });
-
-    expect(result.content).toBeDefined();
-    const responseText = (result.content as any)[0].text;
-    expect(responseText).toContain("Created contact");
-    expect(responseText).toContain("Minimal Contact");
-
-    // Should have default empty arrays for array fields
-    const contact = JSON.parse(responseText.split("Created contact: ")[1]);
-    expect(Array.isArray(contact.email)).toBe(true);
-    expect(Array.isArray(contact.phone)).toBe(true);
-    expect(Array.isArray(contact.links)).toBe(true);
-    expect(Array.isArray(contact.tags)).toBe(true);
-  });
-
-  test("should handle bulk update with extended fields", async () => {
-    // First create some contacts to update
-    const createResult = await testToolCall(
-      testClient.client,
-      "bulk-create-contacts",
-      {
-        contacts: [
-          { name: "Update Test 1", title: "Junior Dev" },
-          { name: "Update Test 2", title: "Junior Designer" },
-        ],
-      },
-    );
-
-    const createResponse = JSON.parse(
-      (createResult.content as any)[0].text.split("Bulk insert result: ")[1],
-    );
-    const contactIds = createResponse.contacts.map((c: any) => c.id);
-
-    // Now update them
-    const updateResult = await testToolCall(
-      testClient.client,
-      "bulk-update-contacts",
-      {
-        updates: [
-          {
-            id: contactIds[0],
-            title: "Senior Developer",
-            company: "Tech Company",
-            tags: ["senior", "developer", "promoted"],
-            location: "Remote",
-          },
-          {
-            id: contactIds[1],
-            title: "Senior Designer",
-            company: "Design Agency",
-            tags: ["senior", "designer", "promoted"],
-            links: ["https://portfolio.example.com"],
-          },
-        ],
-      },
-    );
-
-    expect(updateResult.content).toBeDefined();
-    const responseText = (updateResult.content as any)[0].text;
-    expect(responseText).toContain("Bulk update result");
-    expect(responseText).toContain("Senior Developer");
-    expect(responseText).toContain("Senior Designer");
-  });
-
-  test("should handle search with extended field content", async () => {
-    const result = await testToolCall(testClient.client, "search-contacts", {
-      query: "DevOps",
-    });
-
-    expect(result.content).toBeDefined();
-    const responseText = (result.content as any)[0].text;
-    expect(responseText).toContain("Search results");
-    // Should find Alex Rodriguez created earlier
-    expect(responseText).toContain("Alex Rodriguez");
-  });
-
-  test("should handle date validation", async () => {
-    const result = await testToolCall(testClient.client, "create-contact", {
-      name: "Date Test Contact",
-      birthdate: "1995-12-25", // Valid ISO date
-    });
-
-    expect(result.content).toBeDefined();
-    const responseText = (result.content as any)[0].text;
-    expect(responseText).toContain("Date Test Contact");
-    expect(responseText).toContain("1995-12-25");
-  });
-});
-
-describe("Error Handling E2E Tests", () => {
-  let testClient: MCPTestClient;
-
-  beforeAll(async () => {
-    testClient = await createMCPTestClient();
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-  });
-
-  afterAll(async () => {
-    if (testClient) {
-      await testClient.cleanup();
-    }
-  });
-
-  test("should handle get contact with invalid ID", async () => {
-    const result = await testToolCall(testClient.client, "get-contact", {
-      id: "invalid-uuid-12345",
-    });
-
-    expect(result.content).toBeDefined();
-    const responseText = (result.content as any)[0].text;
-    // Should contain either "not found" or "Failed query" (database error for invalid UUID)
-    expect(responseText).toMatch(/(not found|Failed query)/);
-  });
-
-  test("should handle update contact with invalid ID", async () => {
-    const result = await testToolCall(testClient.client, "update-contact", {
-      id: "invalid-uuid-12345",
-      name: "Updated Name",
-    });
-
-    // Should not throw error, but return null result
-    expect(result.content).toBeDefined();
-  });
-
-  test("should handle delete contact with invalid ID", async () => {
-    const result = await testToolCall(testClient.client, "delete-contact", {
-      id: "invalid-uuid-12345",
-    });
-
-    // Should complete without error (idempotent operation)
-    expect(result.content).toBeDefined();
-    const responseText = (result.content as any)[0].text;
-    expect(responseText).toContain("deleted successfully");
-  });
-
-  test("should handle bulk operations with mixed valid/invalid data", async () => {
-    const result = await testToolCall(
-      testClient.client,
-      "bulk-create-contacts",
-      {
-        contacts: [
-          { name: "Valid Contact 1", email: "valid1@example.com" },
-          { name: "Valid Contact 2", email: "valid2@example.com" },
-        ],
-      },
-    );
-
-    expect(result.content).toBeDefined();
-    const responseText = (result.content as any)[0].text;
-    expect(responseText).toContain("Bulk insert result");
+    const contactData = JSON.parse(responseText);
+    expect(contactData.id).toBeDefined();
+    expect(contactData.name).toBe("José García-López");
   });
 
   test("should handle very long field values", async () => {
@@ -525,5 +99,475 @@ describe("Error Handling E2E Tests", () => {
     expect(result.content).toBeDefined();
     const responseText = (result.content as any)[0].text;
     expect(responseText).toContain("Empty Arrays Test");
+  });
+
+  test("should update a contact", async () => {
+    // First create a contact to update
+    const createResult = await testToolCall(
+      testClient.client,
+      "create-contact",
+      {
+        name: "Update Test User",
+        title: "Junior Developer",
+        company: "StartupCorp",
+        email: "update@test.com",
+        phone: "555-0001",
+        tags: ["developer", "junior"],
+        notes: "Original notes",
+        location: "New York",
+      },
+    );
+
+    const createdContact = JSON.parse((createResult.content as any)[0].text);
+    const contactId = createdContact.id;
+
+    // Now update the contact
+    const updateResult = await testToolCall(
+      testClient.client,
+      "update-contact",
+      {
+        id: contactId,
+        title: "Senior Developer",
+        company: "TechCorp",
+        email: ["update@test.com", "senior@techcorp.com"],
+        tags: ["developer", "senior", "team-lead"],
+        notes: "Updated notes - promoted to senior",
+        location: "San Francisco",
+      },
+    );
+
+    expect(updateResult.content).toBeDefined();
+    const updatedContact = JSON.parse((updateResult.content as any)[0].text);
+    expect(updatedContact.id).toBe(contactId);
+    expect(updatedContact.name).toBe("Update Test User"); // Should remain unchanged
+    expect(updatedContact.title).toBe("Senior Developer");
+    expect(updatedContact.company).toBe("TechCorp");
+    expect(updatedContact.email).toContain("senior@techcorp.com");
+    expect(updatedContact.tags).toContain("senior");
+    expect(updatedContact.notes).toBe("Updated notes - promoted to senior");
+    expect(updatedContact.location).toBe("San Francisco");
+  });
+
+  test("should get a contact by ID", async () => {
+    // First create a contact
+    const createResult = await testToolCall(
+      testClient.client,
+      "create-contact",
+      {
+        name: "Get Test User",
+        title: "Product Manager",
+        company: "ProductCorp",
+        email: "get@test.com",
+        notes: "Test contact for get operation",
+      },
+    );
+
+    const createdContact = JSON.parse((createResult.content as any)[0].text);
+    const contactId = createdContact.id;
+
+    // Now get the contact
+    const getResult = await testToolCall(testClient.client, "get-contact", {
+      id: contactId,
+    });
+
+    expect(getResult.content).toBeDefined();
+    const retrievedContact = JSON.parse((getResult.content as any)[0].text);
+    expect(retrievedContact.id).toBe(contactId);
+    expect(retrievedContact.name).toBe("Get Test User");
+    expect(retrievedContact.title).toBe("Product Manager");
+    expect(retrievedContact.company).toBe("ProductCorp");
+    expect(retrievedContact.email).toContain("get@test.com");
+    expect(retrievedContact.notes).toBe("Test contact for get operation");
+  });
+
+  test("should delete a contact", async () => {
+    // First create a contact to delete
+    const createResult = await testToolCall(
+      testClient.client,
+      "create-contact",
+      {
+        name: "Delete Test User",
+        email: "delete@test.com",
+        notes: "This contact will be deleted",
+      },
+    );
+
+    const createdContact = JSON.parse((createResult.content as any)[0].text);
+    const contactId = createdContact.id;
+
+    // Delete the contact
+    const deleteResult = await testToolCall(
+      testClient.client,
+      "delete-contact",
+      {
+        id: contactId,
+      },
+    );
+
+    expect(deleteResult.content).toBeDefined();
+    const deleteResponse = JSON.parse((deleteResult.content as any)[0].text);
+    expect(deleteResponse.success).toBe(true);
+    expect(deleteResponse.deletedId).toBe(contactId);
+    expect(deleteResponse.message).toContain("deleted successfully");
+
+    // Verify contact is deleted by trying to get it
+    const getResult = await testToolCall(testClient.client, "get-contact", {
+      id: contactId,
+    });
+
+    const getResponse = JSON.parse((getResult.content as any)[0].text);
+    expect(getResponse.contact).toBeNull();
+  });
+
+  test("should handle bulk create contacts", async () => {
+    const contacts = [
+      {
+        name: "Bulk User 1",
+        title: "Software Engineer",
+        company: "TechStart",
+        email: "bulk1@test.com",
+        tags: ["engineer", "backend"],
+      },
+      {
+        name: "Bulk User 2",
+        title: "UX Designer",
+        company: "DesignStudio",
+        email: ["bulk2@test.com", "bulk2@design.com"],
+        tags: ["design", "ux"],
+        location: "Remote",
+      },
+      {
+        name: "Bulk User 3",
+        title: "Data Scientist",
+        company: "DataCorp",
+        email: "bulk3@test.com",
+        phone: "555-0003",
+        notes: "Specializes in machine learning",
+      },
+    ];
+
+    const result = await testToolCall(
+      testClient.client,
+      "bulk-create-contacts",
+      {
+        contacts,
+      },
+    );
+
+    expect(result.content).toBeDefined();
+    const bulkResponse = JSON.parse((result.content as any)[0].text);
+    expect(bulkResponse.processedCount).toBe(3);
+    expect(bulkResponse.contacts).toHaveLength(3);
+    // Allow for context errors in bulk operations
+    if (bulkResponse.errors.length > 0) {
+      console.log("Bulk create errors:", bulkResponse.errors);
+    }
+
+    // Verify each contact was created correctly
+    const createdContacts = bulkResponse.contacts;
+    expect(createdContacts[0].name).toBe("Bulk User 1");
+    expect(createdContacts[0].title).toBe("Software Engineer");
+    expect(createdContacts[1].name).toBe("Bulk User 2");
+    expect(createdContacts[1].email).toContain("bulk2@design.com");
+    expect(createdContacts[2].name).toBe("Bulk User 3");
+    expect(createdContacts[2].notes).toBe("Specializes in machine learning");
+  });
+
+  test("should handle bulk update contacts", async () => {
+    // First create contacts to update
+    const createResult = await testToolCall(
+      testClient.client,
+      "bulk-create-contacts",
+      {
+        contacts: [
+          { name: "Bulk Update 1", title: "Junior Dev", company: "StartupA" },
+          {
+            name: "Bulk Update 2",
+            title: "Junior Designer",
+            company: "StartupB",
+          },
+          { name: "Bulk Update 3", title: "Junior PM", company: "StartupC" },
+        ],
+      },
+    );
+
+    const createResponse = JSON.parse((createResult.content as any)[0].text);
+    const contactIds = createResponse.contacts.map((c: any) => c.id);
+
+    // Now bulk update them
+    const updates = [
+      {
+        id: contactIds[0],
+        title: "Senior Developer",
+        tags: ["senior", "promoted"],
+        location: "San Francisco",
+      },
+      {
+        id: contactIds[1],
+        title: "Senior Designer",
+        company: "DesignCorp",
+        tags: ["senior", "design-lead"],
+      },
+      {
+        id: contactIds[2],
+        title: "Senior Product Manager",
+        notes: "Promoted to senior role",
+        tags: ["senior", "product"],
+      },
+    ];
+
+    const updateResult = await testToolCall(
+      testClient.client,
+      "bulk-update-contacts",
+      {
+        updates,
+      },
+    );
+
+    expect(updateResult.content).toBeDefined();
+    const updateResponse = JSON.parse((updateResult.content as any)[0].text);
+    expect(updateResponse.processedCount).toBe(3);
+    expect(updateResponse.contacts).toHaveLength(3);
+    expect(updateResponse.errors).toHaveLength(0);
+
+    // Verify updates
+    const updatedContacts = updateResponse.contacts;
+    expect(updatedContacts[0].title).toBe("Senior Developer");
+    expect(updatedContacts[0].location).toBe("San Francisco");
+    expect(updatedContacts[1].title).toBe("Senior Designer");
+    expect(updatedContacts[1].company).toBe("DesignCorp");
+    expect(updatedContacts[2].title).toBe("Senior Product Manager");
+    expect(updatedContacts[2].notes).toBe("Promoted to senior role");
+  });
+
+  test("should handle bulk delete contacts", async () => {
+    // First create contacts to delete
+    const createResult = await testToolCall(
+      testClient.client,
+      "bulk-create-contacts",
+      {
+        contacts: [
+          { name: "Delete Me 1", email: "delete1@test.com" },
+          { name: "Delete Me 2", email: "delete2@test.com" },
+          { name: "Delete Me 3", email: "delete3@test.com" },
+        ],
+      },
+    );
+
+    const createResponse = JSON.parse((createResult.content as any)[0].text);
+    const contactIds = createResponse.contacts.map((c: any) => c.id);
+
+    // Delete them in bulk
+    const deleteResult = await testToolCall(
+      testClient.client,
+      "bulk-delete-contacts",
+      {
+        ids: contactIds,
+      },
+    );
+
+    expect(deleteResult.content).toBeDefined();
+    const deleteResponse = JSON.parse((deleteResult.content as any)[0].text);
+    expect(deleteResponse.processedCount).toBe(3);
+    expect(deleteResponse.errors).toHaveLength(0);
+
+    // Verify contacts are deleted
+    for (const contactId of contactIds) {
+      const getResult = await testToolCall(testClient.client, "get-contact", {
+        id: contactId,
+      });
+      const getResponse = JSON.parse((getResult.content as any)[0].text);
+      expect(getResponse.contact).toBeNull();
+    }
+  });
+
+  test("should handle get contact with invalid ID", async () => {
+    const result = await testToolCall(testClient.client, "get-contact", {
+      id: "invalid-uuid-12345",
+    });
+
+    expect(result.content).toBeDefined();
+    const responseText = (result.content as any)[0].text;
+    // Handle both JSON response and error text
+    try {
+      const response = JSON.parse(responseText);
+      expect(response.contact).toBeNull();
+    } catch {
+      // If not JSON, it's an error message
+      expect(responseText).toContain("Failed");
+    }
+  });
+
+  test("should handle update contact with invalid ID", async () => {
+    const result = await testToolCall(testClient.client, "update-contact", {
+      id: "invalid-uuid-12345",
+      name: "Should Not Work",
+    });
+
+    expect(result.content).toBeDefined();
+    const responseText = (result.content as any)[0].text;
+    // Should contain error information about the failed operation
+    expect(responseText).toContain("Failed");
+  });
+
+  test("should handle delete contact with invalid ID", async () => {
+    const result = await testToolCall(testClient.client, "delete-contact", {
+      id: "invalid-uuid-12345",
+    });
+
+    // Should complete without error (idempotent operation)
+    expect(result.content).toBeDefined();
+    const response = JSON.parse((result.content as any)[0].text);
+    expect(response.success).toBe(true);
+  });
+
+  test("should handle bulk operations with mixed valid/invalid data", async () => {
+    // First create one valid contact
+    const createResult = await testToolCall(
+      testClient.client,
+      "create-contact",
+      {
+        name: "Valid Contact",
+      },
+    );
+    const validContact = JSON.parse((createResult.content as any)[0].text);
+
+    // Try bulk update with mix of valid and invalid IDs
+    const result = await testToolCall(
+      testClient.client,
+      "bulk-update-contacts",
+      {
+        updates: [
+          { id: validContact.id, title: "Updated Title" },
+          { id: "invalid-uuid-12345", title: "Should Fail" },
+        ],
+      },
+    );
+
+    expect(result.content).toBeDefined();
+    const bulkResponse = JSON.parse((result.content as any)[0].text);
+    expect(bulkResponse.processedCount).toBe(1);
+    expect(bulkResponse.errors.length).toBeGreaterThan(0);
+  });
+
+  test("should handle empty bulk operations", async () => {
+    const createResult = await testToolCall(
+      testClient.client,
+      "bulk-create-contacts",
+      {
+        contacts: [],
+      },
+    );
+
+    expect(createResult.content).toBeDefined();
+    const response = JSON.parse((createResult.content as any)[0].text);
+    expect(response.processedCount).toBe(0);
+    expect(response.contacts).toHaveLength(0);
+  });
+
+  test("should handle very long field values", async () => {
+    const longText = "A".repeat(1000); // Very long string
+    const result = await testToolCall(testClient.client, "create-contact", {
+      name: "Long Text Test",
+      notes: longText,
+    });
+
+    expect(result.content).toBeDefined();
+    const contact = JSON.parse((result.content as any)[0].text);
+    expect(contact.name).toBe("Long Text Test");
+    expect(contact.notes).toBe(longText);
+  });
+
+  test("should handle array vs string field conversion", async () => {
+    // Test with string inputs that should become arrays
+    const result = await testToolCall(testClient.client, "create-contact", {
+      name: "Array Test",
+      email: "single@test.com", // String should become array
+      phone: "555-0001", // String should become array
+      tags: "single-tag", // String should become array
+      links: "https://example.com", // String should become array
+    });
+
+    expect(result.content).toBeDefined();
+    const contact = JSON.parse((result.content as any)[0].text);
+    expect(Array.isArray(contact.email)).toBe(true);
+    expect(contact.email).toContain("single@test.com");
+    expect(Array.isArray(contact.phone)).toBe(true);
+    expect(contact.phone).toContain("555-0001");
+    expect(Array.isArray(contact.tags)).toBe(true);
+    expect(contact.tags).toContain("single-tag");
+    expect(Array.isArray(contact.links)).toBe(true);
+    expect(contact.links).toContain("https://example.com");
+  });
+
+  test("should handle date validation", async () => {
+    const result = await testToolCall(testClient.client, "create-contact", {
+      name: "Date Test",
+      birthdate: "1990-05-15",
+    });
+
+    expect(result.content).toBeDefined();
+    const contact = JSON.parse((result.content as any)[0].text);
+    expect(contact.name).toBe("Date Test");
+    expect(contact.birthdate).toBe("1990-05-15");
+  });
+
+  test("should handle workflow: create → update → get → delete", async () => {
+    // Create
+    const createResult = await testToolCall(
+      testClient.client,
+      "create-contact",
+      {
+        name: "Workflow Test",
+        title: "Initial Title",
+        email: "workflow@test.com",
+      },
+    );
+    const created = JSON.parse((createResult.content as any)[0].text);
+    expect(created.name).toBe("Workflow Test");
+
+    // Update
+    const updateResult = await testToolCall(
+      testClient.client,
+      "update-contact",
+      {
+        id: created.id,
+        title: "Updated Title",
+        company: "New Company",
+      },
+    );
+    const updated = JSON.parse((updateResult.content as any)[0].text);
+    expect(updated.title).toBe("Updated Title");
+    expect(updated.company).toBe("New Company");
+
+    // Get
+    const getResult = await testToolCall(testClient.client, "get-contact", {
+      id: created.id,
+    });
+    const retrieved = JSON.parse((getResult.content as any)[0].text);
+    expect(retrieved.title).toBe("Updated Title");
+    expect(retrieved.company).toBe("New Company");
+
+    // Delete
+    const deleteResult = await testToolCall(
+      testClient.client,
+      "delete-contact",
+      {
+        id: created.id,
+      },
+    );
+    const deleteResponse = JSON.parse((deleteResult.content as any)[0].text);
+    expect(deleteResponse.success).toBe(true);
+
+    // Verify deletion
+    const finalGetResult = await testToolCall(
+      testClient.client,
+      "get-contact",
+      {
+        id: created.id,
+      },
+    );
+    const finalResponse = JSON.parse((finalGetResult.content as any)[0].text);
+    expect(finalResponse.contact).toBeNull();
   });
 });

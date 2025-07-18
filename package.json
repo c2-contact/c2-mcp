@@ -7,6 +7,7 @@
     "dev:ollama": "bun index.ts --ai-base-url=http://localhost:11434/v1 --embeddings-model=mxbai-embed-large",
     "db:generate": "drizzle-kit generate",
     "fmt": "prettier --write .",
+    "typecheck": "tsc --noEmit",
     "test": "bun test src/",
     "test:integration": "bun test integration/ --timeout 300000",
     "test:e2e": "bun test e2e/ --timeout 300000"
@@ -23,6 +24,7 @@
     "@electric-sql/pglite": "^0.3.4",
     "@modelcontextprotocol/sdk": "^1.16.0",
     "drizzle-orm": "^0.44.2",
+    "drizzle-zod": "^0.8.2",
     "ollama": "^0.5.16",
     "zod": "^3.23.8"
   }

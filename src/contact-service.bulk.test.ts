@@ -58,9 +58,9 @@ describe("ContactService Bulk Operations", () => {
         // Verify each contact was created correctly
         result.contacts.forEach((contact, index) => {
           const input = inputs[index];
-          expect(contact.name).toBe(input?.name);
-          expect(contact.title).toBe(input?.title);
-          expect(contact.company).toBe(input?.company);
+          expect(contact.name).toBe(input!.name);
+          expect(contact.title).toBe(input!.title || "");
+          expect(contact.company).toBe(input!.company || "");
           expect(contact.id).toBeDefined();
           expect(contact.createdAt).toBeDefined();
           expect(contact.updatedAt).toBeDefined();
@@ -96,7 +96,7 @@ describe("ContactService Bulk Operations", () => {
 
         result.contacts.forEach((contact, index) => {
           const input = inputs[index];
-          expect(contact.name).toBe(input?.name);
+          expect(contact.name).toBe(input!.name);
           expect(contact.title).toBe("");
           expect(contact.company).toBe("");
         });
@@ -234,7 +234,7 @@ describe("ContactService Bulk Operations", () => {
         const insertResult = await contactService.bulkInsertContacts([
           { name: "Valid Contact" },
         ]);
-        const validId = insertResult.contacts[0].id;
+        const validId = insertResult.contacts[0]!.id;
 
         const updates: ContactUpdate[] = [
           {
@@ -254,9 +254,9 @@ describe("ContactService Bulk Operations", () => {
         expect(result.errors).toHaveLength(1);
         expect(result.contacts).toHaveLength(1);
 
-        expect(result.contacts[0].name).toBe("Updated Valid Contact");
-        expect(result.errors[0].index).toBe(1);
-        expect(result.errors[0].error).toBe("Contact not found");
+        expect(result.contacts[0]!.name).toBe("Updated Valid Contact");
+        expect(result.errors[0]!.index).toBe(1);
+        expect(result.errors[0]!.error).toBe("Contact not found");
       });
     });
 
@@ -273,7 +273,7 @@ describe("ContactService Bulk Operations", () => {
           },
         ]);
 
-        const contactId = insertResult.contacts[0].id;
+        const contactId = insertResult.contacts[0]!.id;
 
         // Update only the name
         const updates: ContactUpdate[] = [
@@ -287,9 +287,9 @@ describe("ContactService Bulk Operations", () => {
 
         expect(result.success).toBe(true);
         expect(result.processedCount).toBe(1);
-        expect(result.contacts[0].name).toBe("Updated Name Only");
-        expect(result.contacts[0].title).toBe("Original Title");
-        expect(result.contacts[0].company).toBe("Original Company");
+        expect(result.contacts[0]!.name).toBe("Updated Name Only");
+        expect(result.contacts[0]!.title).toBe("Original Title");
+        expect(result.contacts[0]!.company).toBe("Original Company");
       });
     });
   });
@@ -362,7 +362,7 @@ describe("ContactService Bulk Operations", () => {
         const insertResult = await contactService.bulkInsertContacts([
           { name: "Valid Contact to Delete" },
         ]);
-        const validId = insertResult.contacts[0].id;
+        const validId = insertResult.contacts[0]!.id;
 
         const idsToDelete = [validId, "550e8400-e29b-41d4-a716-446655440000"];
 
@@ -374,11 +374,11 @@ describe("ContactService Bulk Operations", () => {
         expect(result.deletedIds).toHaveLength(1);
         expect(result.deletedIds[0]).toBe(validId);
 
-        expect(result.errors[0].index).toBe(1);
-        expect(result.errors[0].error).toBe(
+        expect(result.errors[0]!.index).toBe(1);
+        expect(result.errors[0]!.error).toBe(
           "Contact not found or deletion failed",
         );
-        expect(result.errors[0].data).toBe(
+        expect(result.errors[0]!.data).toBe(
           "550e8400-e29b-41d4-a716-446655440000",
         );
 

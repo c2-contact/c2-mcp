@@ -675,7 +675,7 @@ describe("Embeddings with CRUD Operations Integration Tests", () => {
           const foundIndividual = searchResults.find(
             (c) => c.id === individualContact.id,
           );
-          const foundBulk = searchResults.find((c) => c.id === bulkContact.id);
+          const foundBulk = searchResults.find((c) => c.id === bulkContact?.id);
 
           expect(foundIndividual).toBeDefined();
           expect(foundBulk).toBeDefined();
@@ -685,7 +685,7 @@ describe("Embeddings with CRUD Operations Integration Tests", () => {
           const individualInTop = topResults.some(
             (c) => c.id === individualContact.id,
           );
-          const bulkInTop = topResults.some((c) => c.id === bulkContact.id);
+          const bulkInTop = topResults.some((c) => c.id === bulkContact?.id);
 
           expect(individualInTop).toBe(true);
           expect(bulkInTop).toBe(true);
